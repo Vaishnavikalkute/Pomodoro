@@ -20,6 +20,7 @@ function Timer({ onSessionComplete }) {
   // Unlike state, changing it doesn't cause re-renders
   const intervalRef = useRef(null);
   const audioContextRef = useRef(null);
+  const isInitialMount = useRef(true);
 
   const presets = [
     { label: 'Focus Time', minutes: 25 },
@@ -34,6 +35,16 @@ function Timer({ onSessionComplete }) {
   useEffect(() => {
     audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
 
+    // Load saved timer state from localStorage
+    const savedState = localStorage.getItem('pomodoroTimerState');
+    if (savedState) {
+      const { timeLeft: savedTime, sessionTitle: savedTitle, currentLabel: savedLabel } = JSON.parse(savedState);
+      setTimeLeft(savedTime);
+      setSessionTitle(savedTitle);
+      setCurrentLabel(savedLabel);
+      // Don't auto-resume the timer, let user click Start
+    }
+
     // Cleanup function - runs when component unmounts
     return () => {
       if (audioContextRef.current) {
@@ -41,6 +52,22 @@ function Timer({ onSessionComplete }) {
       }
     };
   }, []); // Empty dependency array = run once on mount
+
+  // Save timer state to localStorage whenever it changes
+  useEffect(() => {
+    // Skip saving on initial mount to allow loading first
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+
+    const timerState = {
+      timeLeft,
+      sessionTitle,
+      currentLabel
+    };
+    localStorage.setItem('pomodoroTimerState', JSON.stringify(timerState));
+  }, [timeLeft, sessionTitle, currentLabel]);
 
   // This useEffect runs whenever isRunning or timeLeft changes
   // The array [isRunning, timeLeft] is the "dependency array"
@@ -61,6 +88,8 @@ function Timer({ onSessionComplete }) {
                 date: new Date().toLocaleDateString()
               });
             }
+            // Clear saved timer state when session completes
+            localStorage.removeItem('pomodoroTimerState');
             return 0;
           }
           return prev - 1;
